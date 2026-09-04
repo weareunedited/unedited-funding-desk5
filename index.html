@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#12382f" />
+  <meta name="description" content="Funding intelligence and application operations for We Are Unedited." />
+  <meta property="og:title" content="Funding Desk V6 · We Are Unedited" />
+  <meta property="og:description" content="Research, prioritise and deliver stronger funding applications." />
+  <meta name="twitter:card" content="summary" />
+  <title>Funding Desk V6 · We Are Unedited</title>
+</head>
+<body>
+  <aside class="rail" id="rail">
+    <a class="brand" href="#overview" aria-label="Funding Desk home"><span class="brand-seal">U</span><span>Funding Desk<small>WE ARE UNEDITED · V6</small></span></a>
+    <nav aria-label="Funding Desk sections">
+      <button class="nav-item active" data-view="overview"><span class="nav-icon">⌂</span>Overview</button>
+      <button class="nav-item" data-view="pipeline"><span class="nav-icon">◉</span>Opportunities <b id="nav-count">0</b></button>
+      <button class="nav-item" data-view="research"><span class="nav-icon">⌕</span>Live research</button>
+      <button class="nav-item" data-view="library"><span class="nav-icon">▤</span>Project library</button>
+      <button class="nav-item" data-view="activity"><span class="nav-icon">↻</span>Activity log</button>
+    </nav>
+    <div class="rail-status"><span class="pulse"></span><span><strong>Weekly Radar</strong><small>Mondays · 08:00</small></span></div>
+    <button class="profile" id="profile-button"><span id="profile-initials">BU</span><span><strong id="profile-name">Bernard</strong><small id="profile-role">Owner</small></span><span>•••</span></button>
+  </aside>
+
+  <main>
+    <header class="masthead">
+      <button class="menu-button" id="menu-button" aria-label="Toggle navigation">☰</button>
+      <div><p class="kicker" id="section-kicker">FUNDING OPERATIONS</p><h1 id="section-title">Funding overview</h1></div>
+      <div class="mast-actions"><span class="system-state" id="system-state"><i></i>Checking setup</span><button class="secondary" id="quick-research">Research</button><button class="primary" data-create="opportunity">＋ Add opportunity</button></div>
+    </header>
+    <div class="notice" id="notice" hidden></div>
+
+    <section class="view active" id="overview">
+      <div class="metrics">
+        <article><p>ACTIVE PIPELINE</p><strong id="metric-active">0</strong><small>open opportunities</small></article>
+        <article><p>NEXT DEADLINE</p><strong id="metric-deadline">—</strong><small id="metric-deadline-label">Nothing scheduled</small></article>
+        <article><p>GO DECISIONS</p><strong id="metric-go">0</strong><small>ready to progress</small></article>
+        <article class="metric-value"><p>POTENTIAL VALUE</p><strong id="metric-value">£0</strong><small>maximum awards</small></article>
+      </div>
+      <div class="overview-grid">
+        <article class="card pipeline-card"><div class="card-head"><div><p class="kicker">PRIORITY QUEUE</p><h2>Funding pipeline</h2></div><button class="link-button" data-view="pipeline">View all →</button></div><div id="priority-list" class="list"></div></article>
+        <article class="card deadlines-card"><div class="card-head"><div><p class="kicker">NEXT 60 DAYS</p><h2>Deadline watch</h2></div></div><div id="deadline-watch" class="deadline-list"></div></article>
+      </div>
+      <div class="overview-lower">
+        <article class="card scoring-card"><div><p class="kicker">DECISION SUPPORT</p><h2>Evidence-led scoring</h2><p>Assess strategic fit, eligibility, evidence, delivery capacity and return on effort. Editors control the final go/no-go decision.</p></div><div class="score-key"><span><i class="green"></i>70–100 Go</span><span><i class="amber"></i>45–69 Review</span><span><i class="red"></i>0–44 No-go</span></div></article>
+        <article class="card intelligence-card"><p class="kicker">LIVE INTELLIGENCE</p><h2>Research with a trail</h2><p>Every result keeps clickable sources and the precise time it was checked.</p><button class="cream" data-view="research">Start sourced research →</button></article>
+      </div>
+    </section>
+
+    <section class="view" id="pipeline">
+      <div class="page-tools"><div><p class="kicker">OPPORTUNITIES</p><h2>Funding pipeline</h2><p>Move promising opportunities from discovery to decision and delivery.</p></div><button class="primary" data-create="opportunity">＋ Add opportunity</button></div>
+      <div class="filter-row"><label class="search-field">⌕ <input id="opportunity-search" placeholder="Search funder or programme" /></label><select id="status-filter"><option value="">All stages</option><option value="researching">Researching</option><option value="review">Review</option><option value="go">Go</option><option value="no_go">No-go</option><option value="drafting">Drafting</option><option value="submitted">Submitted</option><option value="won">Won</option><option value="lost">Lost</option></select></div>
+      <div class="table-card" id="opportunity-table"></div>
+    </section>
+
+    <section class="view" id="research">
+      <div class="page-tools"><div><p class="kicker">VERIFIABLE RESEARCH</p><h2>Live funder research</h2><p>Search the live web, prioritise official sources and preserve the evidence trail.</p></div></div>
+      <article class="research-panel"><div class="research-form"><label>Research question</label><textarea id="research-question" placeholder="e.g. Check eligibility, deadline and award range for Arts Council England National Lottery Project Grants for a London-based CIC."></textarea><div class="research-options"><select id="research-opportunity"><option value="">Do not attach to an opportunity</option></select><button class="primary" id="run-research">Research current sources</button></div></div><div class="research-output empty" id="research-output"><div class="empty-icon">⌕</div><h3>No research yet</h3><p>Your sourced findings and checked timestamp will appear here.</p></div></article>
+    </section>
+
+    <section class="view" id="library">
+      <div class="page-tools"><div><p class="kicker">REUSABLE KNOWLEDGE</p><h2>Project & evidence library</h2><p>Keep the strongest organisational material ready for each application.</p></div><div class="button-row"><button class="secondary" id="upload-button">↑ Upload file</button><button class="secondary" data-create="project">＋ Project</button><button class="primary" data-create="evidence">＋ Evidence</button></div></div>
+      <div class="tabs"><button class="active" data-tab="projects">Projects <b id="project-count">0</b></button><button data-tab="evidence">Evidence <b id="evidence-count">0</b></button><button data-tab="files">Files <b id="file-count">0</b></button></div>
+      <div class="library-grid" id="library-grid"></div>
+    </section>
+
+    <section class="view" id="activity">
+      <div class="page-tools"><div><p class="kicker">ACCOUNTABILITY</p><h2>Activity log</h2><p>A server-side record of every material change and who made it.</p></div></div>
+      <div class="activity-card" id="activity-list"></div>
+    </section>
+  </main>
+
+  <aside class="drawer" id="opportunity-drawer" aria-hidden="true"><button class="drawer-close" id="drawer-close" aria-label="Close details">×</button><div id="drawer-content"></div></aside><div class="scrim" id="scrim"></div>
+
+  <dialog id="form-dialog"><form id="record-form"><button class="dialog-close" type="button" data-close-dialog>×</button><p class="kicker" id="form-kicker">NEW RECORD</p><h2 id="form-title">Add opportunity</h2><div id="form-fields"></div><footer><button class="secondary" type="button" data-close-dialog>Cancel</button><button class="primary" type="submit">Save</button></footer></form></dialog>
+  <dialog id="login-dialog"><form id="login-form"><div class="login-brand"><span class="brand-seal">U</span><div><p class="kicker">WE ARE UNEDITED</p><h2>Welcome to Funding Desk</h2></div></div><p>Sign in with your invited Netlify Identity account.</p><label>Email<input type="email" name="email" autocomplete="username" required /></label><label>Password<input type="password" name="password" autocomplete="current-password" required /></label><button class="primary wide" type="submit">Sign in</button><p class="form-error" id="login-error"></p></form></dialog>
+  <input type="file" id="file-input" hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" />
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "unedited-funding-desk-v6",
+  "version": "6.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "vite build && node scripts/validate-build.mjs",
+    "preview": "vite preview",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@netlify/blobs": "10.7.13",
+    "@netlify/database": "2.0.1",
+    "@netlify/functions": "6.0.0",
+    "@netlify/identity": "2.0.0",
+    "docx": "9.7.1",
+    "pdf-lib": "1.17.1",
+    "vite": "8.2.2"
+  }
+}
