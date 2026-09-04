@@ -1,5 +1,5 @@
 import './style.css';
-import { getUser, handleAuthCallback, onAuthChange } from '@netlify/identity';
+import { getUser, handleAuthCallback, onAuthChange, acceptInvite, requestPasswordRecovery, updateUser } from '@netlify/identity';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -77,9 +77,21 @@ function openForm(kind) { const form = forms[kind]; $('#record-form').dataset.ki
 
 async function loadData() { try { state.data = await api('/dashboard'); renderAll(); } catch (error) { if (state.preview) { state.data = demo; renderAll(); return; } if (error.status === 401) $('#login-dialog').showModal(); else toast(describeError(error), true); } }
 
+function openPasswordDialog(mode, token = null) {
+  const dialog = $('#password-dialog'); dialog.dataset.mode = mode; dialog.dataset.token = token || '';
+  $('#password-title').textContent = mode === 'invite' ? 'Welcome — set your password' : 'Choose a new password';
+  $('#password-intro').textContent = mode === 'invite' ? 'Your invitation has been verified. Choose a password to finish setting up your Funding Desk account.' : 'Your recovery link has been verified. Choose a new password for your Funding Desk account.';
+  history.replaceState(null, '', location.pathname); $('#login-dialog').close(); dialog.showModal();
+}
+
 async function boot() {
   if (state.preview) { state.data = demo; state.user = { email: 'preview@weareunedited.com', role: 'owner', name: 'Preview' }; renderAll(); $('#system-state').classList.add('good'); $('#system-state').innerHTML = '<i></i>Preview mode'; return; }
-  try { await handleAuthCallback(); } catch (error) { toast(error.message, true); }
+  // Invitation and password-recovery links land here with a token in the URL hash. Netlify Identity does not
+  // log an invited user in until they have chosen a password, so both cases open the set-password dialog.
+  let callback = null;
+  try { callback = await handleAuthCallback(); } catch (error) { toast(error.message, true); }
+  if (callback?.type === 'invite' && callback.token) { openPasswordDialog('invite', callback.token); return; }
+  if (callback?.type === 'recovery') { openPasswordDialog('recovery'); return; }
   try { const health = await api('/health'); $('#system-state').classList.toggle('good', health.database); $('#system-state').innerHTML = `<i></i>${health.database ? 'Core ready' : 'Database setup needed'}`; } catch { $('#system-state').innerHTML = '<i></i>Setup needed'; }
   try { const response = await api('/me'); state.user = response.user; const names = state.user.name.split(/\s+/); $('#profile-initials').textContent = names.map((part) => part[0]).join('').slice(0,2).toUpperCase(); $('#profile-name').textContent = state.user.name; $('#profile-role').textContent = state.user.role; await loadData(); } catch (error) { if (error.status === 401) $('#login-dialog').showModal(); else toast(describeError(error), true); }
 }
@@ -96,5 +108,11 @@ $('#record-form').addEventListener('submit', async (event) => { event.preventDef
 $('#run-research').onclick = async () => { const question = $('#research-question').value.trim(); if (!question) return toast('Enter a research question first.', true); const output = $('#research-output'); output.className = 'research-output loading'; output.innerHTML = '<p>Searching current sources and checking the evidence…</p>'; try { const result = await api('/research', { method: 'POST', body: JSON.stringify({ question, opportunityId: $('#research-opportunity').value || undefined }) }); output.className = 'research-output'; output.innerHTML = `<div class="research-meta">CHECKED ${clean(formatDate(result.lastCheckedAt))} · ${clean(result.model)}</div><div>${clean(result.answer)}</div><div class="sources"><strong>Sources</strong>${result.citations.map((source) => `<a href="${clean(source.url)}" target="_blank" rel="noopener">${clean(source.title || source.url)} ↗</a>`).join('') || '<small>No citations were returned. Verify these findings before use.</small>'}</div>`; if ($('#research-opportunity').value) await loadData(); } catch (error) { output.className = 'research-output empty'; output.innerHTML = `<h3>Research failed</h3><p>${clean(describeError(error))}</p>`; } };
 $('#upload-button').onclick = () => $('#file-input').click(); $('#file-input').onchange = async (event) => { const file = event.target.files[0]; if (!file) return; if (file.size > 4_300_000) return toast('Please choose a file smaller than 4 MB.', true); const category = /xlsx?|csv/i.test(file.name) ? 'budget' : /pdf|docx?/i.test(file.name) ? 'guidance' : 'other'; const base64 = await new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.readAsDataURL(file); }); try { await api('/files', { method: 'POST', body: JSON.stringify({ filename: file.name, contentType: file.type || 'application/octet-stream', category, base64 }) }); toast(`${file.name} uploaded.`); state.tab = 'files'; $$('[data-tab]').forEach((button) => button.classList.toggle('active', button.dataset.tab === 'files')); await loadData(); } catch (error) { toast(describeError(error), true); } finally { event.target.value = ''; } };
 $('#login-form').onsubmit = async (event) => { event.preventDefault(); const button = $('button[type="submit"]', event.currentTarget); const form = Object.fromEntries(new FormData(event.currentTarget)); button.disabled = true; $('#login-error').textContent = ''; try { await api('/auth/login', { method: 'POST', body: JSON.stringify(form) }); location.reload(); } catch (error) { $('#login-error').textContent = error.message; button.disabled = false; } };
+$('#password-form').onsubmit = async (event) => { event.preventDefault(); const dialog = $('#password-dialog'); const button = $('button[type="submit"]', event.currentTarget); const form = Object.fromEntries(new FormData(event.currentTarget)); $('#password-error').textContent = ''; if (form.password !== form.confirm) { $('#password-error').textContent = 'The two passwords do not match.'; return; } button.disabled = true; try { if (dialog.dataset.mode === 'invite') await acceptInvite(dialog.dataset.token, form.password); else await updateUser({ password: form.password }); location.reload(); } catch (error) { $('#password-error').textContent = error.message || 'Could not save the password. Ask for a fresh link and try again.'; button.disabled = false; } };
+$('#forgot-password').onclick = async (event) => { const email = $('#login-form input[name="email"]').value.trim(); const button = event.currentTarget; if (!email) { $('#login-error').textContent = 'Enter your email address first.'; return; } button.disabled = true; $('#login-error').textContent = ''; try { await requestPasswordRecovery(email); $('#login-error').textContent = `Sent. Check ${email} for a link from Netlify, then follow it to set a password.`; } catch (error) { $('#login-error').textContent = error.message || 'Could not send the email.'; button.disabled = false; } };
 $('#profile-button').onclick = async () => { if (state.preview) return; try { await api('/auth/logout', { method: 'POST', body: '{}' }); location.reload(); } catch (error) { toast(describeError(error), true); } };
-onAuthChange(() => { if (!state.preview) location.reload(); }); registerWebMCP(); showView(location.hash.slice(1) in { overview:1,pipeline:1,research:1,library:1,activity:1 } ? location.hash.slice(1) : 'overview'); boot();
+onAuthChange((event) => { if (!state.preview && event !== 'recovery') location.reload(); }); registerWebMCP();
+// Identity callback links (invite, recovery, confirmation) arrive as URL-hash tokens; showView() rewrites the hash, so it must not run until handleAuthCallback() has read them.
+const authHash = /(?:^|[#&])(?:invite_token|recovery_token|confirmation_token|access_token|email_change_token|error)=/.test(location.hash);
+if (!authHash) showView(location.hash.slice(1) in { overview:1,pipeline:1,research:1,library:1,activity:1 } ? location.hash.slice(1) : 'overview');
+boot().then(() => { if (authHash && !$('.view.active')) showView('overview'); });
