@@ -8,6 +8,7 @@ export async function researchFunding(question) {
   const { key, model } = openAIConfig();
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
+    signal: AbortSignal.timeout(12 * 60 * 1000),
     headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
     body: JSON.stringify({
       model,
