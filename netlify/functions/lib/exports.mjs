@@ -8,6 +8,10 @@ function content(opportunity) {
     { text: `Deadline: ${opportunity.deadline || 'Not confirmed'}` },
     { text: `Funding range: £${opportunity.amount_min || 0}–£${opportunity.amount_max || 0}` },
     { text: 'Opportunity summary', heading: true }, { text: opportunity.summary || 'No summary yet.' },
+    ...(opportunity.eligibility ? [{ text: `Eligibility: ${opportunity.eligibility}` }] : []),
+    { text: 'Contact for more information', heading: true },
+    ...([['Contact', opportunity.contact_name], ['Email', opportunity.contact_email], ['Phone', opportunity.contact_phone], ['Enquiries', opportunity.contact_url], ['Programme page', opportunity.url], ['How to enquire', opportunity.contact_notes]].filter(([, value]) => value).map(([label, value]) => ({ text: `${label}: ${value}` }))),
+    ...(!opportunity.contact_name && !opportunity.contact_email && !opportunity.contact_phone && !opportunity.contact_url && !opportunity.url ? [{ text: 'No contact details recorded yet.' }] : []),
     { text: 'Research notes', heading: true }, { text: opportunity.research_notes || 'No research notes yet.' },
     { text: 'Sources', heading: true }, ...(opportunity.citations || []).map((source) => ({ text: `${source.title || source.url}: ${source.url}` })),
   ];
