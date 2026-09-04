@@ -4,7 +4,8 @@ import { login, logout, verifyRequestOrigin } from '@netlify/identity';
 import { user } from './lib/auth.mjs';
 import { rows, audited } from './lib/data.mjs';
 import { send, problem, fail, text, uuid } from './lib/respond.mjs';
-import { researchFunding, assignmentAlert, calendarHook } from './lib/integrations.mjs';
+import { assignmentAlert, calendarHook } from './lib/integrations.mjs';
+import { openAIConfig } from './lib/config.mjs';
 import { makeDocx, makePdf } from './lib/exports.mjs';
 
 const OPPORTUNITY_FIELDS = new Set(['funder_name','programme_name','url','summary','deadline','amount_min','amount_max','status','score_breakdown','owner_email','research_notes','citations','last_checked_at']);
@@ -44,7 +45,7 @@ async function createRecord(kind, body, actor, requestId) {
 
 async function updateOpportunity(id, body, actor, requestId) {
   id = uuid(id); const before = (await rows('SELECT * FROM opportunities WHERE id=$1', [id]))[0]; if (!before) fail('Opportunity not found.', 404, 'NOT_FOUND');
-  const data = pick(body, OPPORTUNITY_FIELDS); if (data.status && !allowedStatus.has(data.status)) fail('Invalid workflow status.');
+  const data = pick(body, OPPORTUNITY_FIELDS); if (data.status && !allowedStatus.has(data.status)) fail('Invalid workflow status.'); if (Array.isArray(data.citations)) data.citations = JSON.stringify(data.citations);
   if (actor.role === 'contributor' && ['status','score_breakdown','owner_email'].some((key) => key in data)) fail('Contributors cannot change decisions, scores or ownership.', 403, 'FORBIDDEN');
   if (data.score_breakdown) { const keys = ['strategic_fit','eligibility','evidence','capacity','return']; data.score_breakdown = Object.fromEntries(keys.map((key) => [key, Math.max(0, Math.min(20, Number(data.score_breakdown[key]) || 0))])); data.score = Object.values(data.score_breakdown).reduce((sum, value) => sum + value, 0); }
   if (!Object.keys(data).length) fail('No editable fields supplied.'); const keys = Object.keys(data);
@@ -62,7 +63,18 @@ export default async (request) => {
     if (request.method === 'GET' && route === 'dashboard') return send(await dashboard());
     if (request.method === 'POST' && ['opportunities','projects','evidence'].includes(route)) return send(await createRecord(route, await json(request), actor, requestId), 201);
     if (request.method === 'PATCH' && parts[0] === 'opportunities' && parts.length === 2) { const body = await json(request); const record = await updateOpportunity(parts[1], body, actor, requestId); const calendar = 'deadline' in body ? await calendarHook(record) : { synced: false }; return send({ record, calendar }); }
-    if (request.method === 'POST' && route === 'research') { const body = await json(request); const result = await researchFunding(text(body.question, 'question', 1200)); if (body.opportunityId) await updateOpportunity(body.opportunityId, { research_notes: result.answer, citations: result.citations, last_checked_at: result.lastCheckedAt }, actor, requestId); return send(result); }
+    if (request.method === 'POST' && route === 'research') {
+      // Live research takes far longer than a synchronous function is allowed, so it is queued here and
+      // performed by the research-background function; the client polls GET /api/research/:id.
+      openAIConfig(); const body = await json(request); const question = text(body.question, 'question', 1200);
+      const opportunityId = body.opportunityId ? uuid(body.opportunityId) : null; const jobId = crypto.randomUUID();
+      await rows('INSERT INTO research_jobs(id,question,opportunity_id,created_by,created_role) VALUES($1,$2,$3,$4,$5)', [jobId, question, opportunityId, actor.email, actor.role]);
+      const origin = process.env.URL || new URL(request.url).origin;
+      const queued = await fetch(`${origin}/.netlify/functions/research-background`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId }) }).catch(() => null);
+      if (!queued || (queued.status !== 202 && queued.status !== 200)) { await rows("UPDATE research_jobs SET status='failed', error=$2, finished_at=now() WHERE id=$1", [jobId, `Could not start the research worker (${queued ? queued.status : 'network error'}).`]); fail('Could not start the research worker. Redeploy the site and try again.', 502, 'PROVIDER_ERROR'); }
+      return send({ jobId, status: 'queued' }, 202);
+    }
+    if (request.method === 'GET' && parts[0] === 'research' && parts.length === 2) { const job = (await rows('SELECT id,status,question,answer,citations,model,error,created_at,finished_at FROM research_jobs WHERE id=$1', [uuid(parts[1])]))[0]; if (!job) fail('Research job not found.', 404, 'NOT_FOUND'); return send({ ...job, lastCheckedAt: job.finished_at }); }
     if (request.method === 'POST' && route === 'assignments') { const body = await json(request); uuid(body.opportunity_id); const assignment = await audited({ actor, action: 'assign', entityType: 'opportunity', entityId: body.opportunity_id, after: body, requestId }, async (client) => (await client.query('INSERT INTO assignments(opportunity_id,assignee_email,task,due_at,created_by) VALUES($1,$2,$3,$4,$5) RETURNING *', [body.opportunity_id,text(body.assignee_email,'assignee_email',320).toLowerCase(),text(body.task,'task'),body.due_at || null,actor.email])).rows[0]); const email = await assignmentAlert(assignment); return send({ assignment, email }, 201); }
     if (request.method === 'POST' && route === 'files') { const body = await json(request); const binary = Buffer.from(text(body.base64,'file data',5_900_000),'base64'); if (binary.length > 4_300_000) fail('Files must be 4 MB or smaller.',413,'FILE_TOO_LARGE'); const filename=text(body.filename,'filename',200); const category=text(body.category,'category',30); if(!['guidance','budget','evidence','application','other'].includes(category))fail('Invalid file category.'); const key=`${crypto.randomUUID()}-${filename.replace(/[^\w.-]/g,'_')}`; await getStore('funding-files').set(key,binary,{metadata:{filename,contentType:body.contentType||'application/octet-stream',uploadedBy:actor.email}}); const record=await audited({actor,action:'upload',entityType:'file',entityId:key,after:{filename,category},requestId},async(client)=>(await client.query('INSERT INTO files(blob_key,filename,content_type,size_bytes,category,linked_type,linked_id,uploaded_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',[key,filename,body.contentType||'application/octet-stream',binary.length,category,body.linkedType||null,body.linkedId||null,actor.email])).rows[0]); return send(record,201); }
     if (request.method === 'GET' && parts[0] === 'files' && parts.length === 2) { const file=(await rows('SELECT * FROM files WHERE id=$1',[uuid(parts[1])]))[0];if(!file)fail('File not found.',404,'NOT_FOUND');const blob=await getStore('funding-files').get(file.blob_key,{type:'arrayBuffer'});if(!blob)fail('Stored file is missing.',404,'NOT_FOUND');return new Response(blob,{headers:{'content-type':file.content_type,'content-disposition':`attachment; filename="${file.filename.replace(/["\r\n]/g,'')}"`}}); }
