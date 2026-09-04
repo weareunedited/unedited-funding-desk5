@@ -1,8 +1,14 @@
 import { access, readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 
-const expected = ['dist/index.html','dist/assets','netlify/functions/api.mjs','netlify/functions/weekly-radar.mjs','netlify/database/migrations/0001_funding_desk.sql','netlify.toml','.env.example','README.md'];
-for (const path of expected) await access(new URL(`../${path}`, import.meta.url));
+// Only files the deploy actually depends on. README.md and .env.example are documentation and are
+// deliberately not required: hidden files are often dropped when a project is uploaded by hand, and
+// their absence must never fail a production build.
+const expected = ['dist/index.html','dist/assets','netlify/functions/api.mjs','netlify/functions/weekly-radar.mjs','netlify/database/migrations/0001_funding_desk.sql','netlify.toml'];
+for (const path of expected) {
+  try { await access(new URL(`../${path}`, import.meta.url)); }
+  catch { throw new Error(`Required file is missing from the repository: ${path}`); }
+}
 for (const path of ['netlify/functions/api.mjs','netlify/functions/weekly-radar.mjs','src/main.js']) {
   const check = spawnSync(process.execPath, ['--check', new URL(`../${path}`, import.meta.url).pathname], { encoding: 'utf8' });
   if (check.status) throw new Error(`${path} has invalid JavaScript:\n${check.stderr}`);
